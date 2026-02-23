@@ -75,7 +75,6 @@ def check_place_on_maps(driver, place_id):
         time.sleep(random.uniform(1.5, 3.0))
 
         # --- CLICK TICKETS TAB ---
-        # Use role="tab" + text to avoid matching "Tickets" elsewhere on page
         try:
             tickets_tab = WebDriverWait(driver, 8).until(
                 EC.presence_of_element_located((
@@ -85,6 +84,22 @@ def check_place_on_maps(driver, place_id):
             driver.execute_script("arguments[0].click();", tickets_tab)
             time.sleep(random.uniform(1.5, 2.5))
         except:
+            # --- DEBUG: Save screenshot and page source to understand what headless Chrome sees ---
+            try:
+                driver.save_screenshot(f"debug_{place_id}.png")
+                with open(f"debug_{place_id}.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                # Also log all tab-like elements found on the page
+                all_tabs = driver.find_elements(By.XPATH, "//*[@role='tab']")
+                tab_texts = [t.text for t in all_tabs]
+                print(f"   [DEBUG] role=tab elements found: {tab_texts}")
+                all_buttons = driver.find_elements(By.TAG_NAME, "button")
+                button_texts = [b.text for b in all_buttons if b.text.strip()][:20]
+                print(f"   [DEBUG] Button texts found: {button_texts}")
+                print(f"   [DEBUG] Page title: {driver.title}")
+                print(f"   [DEBUG] Screenshot + HTML saved as debug_{place_id}.png / .html")
+            except Exception as debug_err:
+                print(f"   [DEBUG] Could not save debug info: {debug_err}")
             return "NO", "No Tickets tab found"
 
         # --- DETECT TTD SECTIONS ---
