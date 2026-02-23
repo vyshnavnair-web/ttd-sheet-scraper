@@ -66,11 +66,13 @@ def check_place_on_maps(driver, place_id):
         # after this tab is clicked — it is NOT present on the default Overview tab.
         try:
             tickets_tab = WebDriverWait(driver, 8).until(
-                EC.element_to_be_clickable((
-                    By.XPATH, "//button[normalize-space(text())='Tickets'] | //div[@role='tab' and normalize-space(text())='Tickets']"
+                EC.presence_of_element_located((
+                    By.XPATH, "//*[normalize-space(text())='Tickets']"
                 ))
             )
-            tickets_tab.click()
+            # Use JS click — more reliable than .click() in headless Chrome
+            # as it bypasses visibility and interactability checks
+            driver.execute_script("arguments[0].click();", tickets_tab)
             # Brief pause after clicking to let the tab content render
             time.sleep(random.uniform(1.5, 2.5))
         except:
