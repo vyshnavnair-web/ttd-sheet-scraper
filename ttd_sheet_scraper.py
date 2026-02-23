@@ -96,28 +96,29 @@ def check_place_on_maps(driver, place_id):
 
         sections_found = []
 
-        # --- CHECK 1: Admission section ---
-        # Primary: official Google TTD admission image (hardcoded Google asset, zero false positives)
-        admission_by_image = driver.find_elements(
+        # After clicking the Tickets tab, Google renders sub-tab buttons
+        # for each module that exists ("Admission", "Tours & Activities").
+        # Simply checking for their presence is the most reliable detection method —
+        # no need to click into them or scan content headings.
+
+        # --- CHECK 1: Admission module ---
+        admission = driver.find_elements(
             By.XPATH,
-            "//img[contains(@src, 'official_admission_32x32.png')]"
+            "//div[@role='tab' and normalize-space(.)='Admission'] | //button[normalize-space(.)='Admission']"
         )
-        # Backup: h2 heading with exact text "Admission"
-        admission_by_heading = driver.find_elements(
-            By.XPATH,
-            "//h2[normalize-space(text())='Admission']"
+        # Fallback: the official admission image only ever appears in the Admission module
+        admission_image = driver.find_elements(
+            By.XPATH, "//img[contains(@src, 'official_admission_32x32.png')]"
         )
-        if admission_by_image or admission_by_heading:
+        if admission or admission_image:
             sections_found.append("Admission")
 
-        # --- CHECK 2: Tours & Activities section ---
-        # From DOM inspection: the heading is in a div, not an h2
-        # Targeting by text content directly is most reliable across places
-        tours_by_heading = driver.find_elements(
+        # --- CHECK 2: Tours & Activities module ---
+        tours = driver.find_elements(
             By.XPATH,
-            "//*[normalize-space(text())='Tours & Activities']"
+            "//div[@role='tab' and normalize-space(.)='Tours & Activities'] | //button[normalize-space(.)='Tours & Activities']"
         )
-        if tours_by_heading:
+        if tours:
             sections_found.append("Tours & Activities")
 
         if sections_found:
