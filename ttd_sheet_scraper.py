@@ -111,14 +111,13 @@ def check_place_on_maps(driver, place_id):
             sections_found.append("Admission")
 
         # --- CHECK 2: Tours & Activities section ---
-        # Primary: h2 heading with exact text "Tours & Activities"
+        # From DOM inspection: the heading is in a div, not an h2
+        # Targeting by text content directly is most reliable across places
         tours_by_heading = driver.find_elements(
             By.XPATH,
-            "//h2[normalize-space(text())='Tours & Activities']"
+            "//*[normalize-space(text())='Tours & Activities']"
         )
-        # Backup: item containers unique to Tours & Activities (class s1zuIf)
-        tours_by_container = driver.find_elements(By.CLASS_NAME, "s1zuIf")
-        if tours_by_heading or tours_by_container:
+        if tours_by_heading:
             sections_found.append("Tours & Activities")
 
         if sections_found:
