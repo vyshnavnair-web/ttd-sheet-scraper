@@ -51,26 +51,60 @@ def check_place_on_maps(driver, place_id):
     url = f"https://www.google.com/maps/search/?api=1&query=google&query_place_id={place_id}"
     try:
         driver.get(url)
-        
-        # Wait for the main container to load
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//h1")))
-        
-        # Variable sleep: Google Maps loads modules at different speeds
-        time.sleep(random.uniform(4, 6)) 
 
-        # Keyword Check
-        keywords = ["Tickets", "Admissions", "Tours", "Activities", "Book a tour", "Admission"]
-        found = []
-        
-        for word in keywords:
-            xpath = f"//*[contains(text(), '{word}') or contains(@aria-label, '{word}')]"
-            if driver.find_elements(By.XPATH, xpath):
-                found.append(word)
+        # Wait for the place name (h1) to confirm the page loaded
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.XPATH, "//h1"))
+        )
 
-        if found:
-            return "YES", ", ".join(set(found))
-        return "NO", "Not detected"
-        
+        # Simulate a human briefly browsing the page before we start looking for elements.
+        # This is intentional — it reduces bot detection risk by avoiding instant DOM scanning.
+        time.sleep(random.uniform(1.5, 3.0))
+
+        # Wait specifically for the TTD region container to appear, or timeout after 10s.
+        # This replaces the fixed sleep — fast pages resolve quickly, slow ones get more time.
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((
+                    By.XPATH, "//*[@role='region' and starts-with(@aria-label, 'Tickets at')]"
+                ))
+            )
+        except:
+            # TTD section didn't appear within 10s — it's not present
+            return "NO", "TTD section not detected"
+
+        sections_found = []
+
+        # --- CHECK 1: Admission section ---
+        # Most reliable signal: the official Google TTD admission image
+        # This image URL is hardcoded by Google and only appears in the Admission module
+        admission_by_image = driver.find_elements(
+            By.XPATH,
+            "//img[contains(@src, 'official_admission_32x32.png')]"
+        )
+        # Backup: h2 heading with exact text "Admission"
+        admission_by_heading = driver.find_elements(
+            By.XPATH,
+            "//h2[normalize-space(text())='Admission']"
+        )
+        if admission_by_image or admission_by_heading:
+            sections_found.append("Admission")
+
+        # --- CHECK 2: Tours & Activities section ---
+        # Target the h2 heading with exact text "Tours & Activities"
+        tours_by_heading = driver.find_elements(
+            By.XPATH,
+            "//h2[normalize-space(text())='Tours & Activities']"
+        )
+        # Backup: item containers unique to Tours & Activities (class s1zuIf)
+        tours_by_container = driver.find_elements(By.CLASS_NAME, "s1zuIf")
+        if tours_by_heading or tours_by_container:
+            sections_found.append("Tours & Activities")
+
+        if sections_found:
+            return "YES", ", ".join(sections_found)
+        return "NO", "TTD region found but no sections detected"
+
     except Exception as e:
         return "ERROR", str(e)[:50]
 
