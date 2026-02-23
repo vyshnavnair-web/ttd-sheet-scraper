@@ -52,81 +52,69 @@ def check_place_on_maps(driver, place_id):
     try:
         driver.get(url)
 
-        # Wait for the place name (h1) to confirm the page loaded
+        # Wait for h1 to confirm page loaded
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.XPATH, "//h1"))
         )
 
-        # Simulate a human briefly browsing the page before we start looking for elements.
-        # This is intentional — it reduces bot detection risk by avoiding instant DOM scanning.
+        # --- GOOGLE BLOCKING DETECTION ---
+        # Check for CAPTCHA, consent pages, or empty/error pages
+        page_source = driver.page_source.lower()
+        page_title = driver.title.lower()
+        blocking_signals = ["captcha", "consent", "before you continue", "unusual traffic", "verify you're human"]
+        for signal in blocking_signals:
+            if signal in page_source or signal in page_title:
+                return "BLOCKED", f"Google blocking detected: {signal}"
+
+        # Also check that the h1 actually has a place name (not an error page)
+        h1_text = driver.find_element(By.XPATH, "//h1").text.strip()
+        if not h1_text:
+            return "ERROR", "Page loaded but h1 is empty — possible bot block"
+
+        # Human-like pause before interacting
         time.sleep(random.uniform(1.5, 3.0))
 
-        # Click the "Tickets" tab if it exists.
-        # The TTD content (Admission, Tours & Activities) only renders in the DOM
-        # after this tab is clicked — it is NOT present on the default Overview tab.
+        # --- CLICK TICKETS TAB ---
+        # Use role="tab" + text to avoid matching "Tickets" elsewhere on page
         try:
             tickets_tab = WebDriverWait(driver, 8).until(
                 EC.presence_of_element_located((
-                    By.XPATH, "//*[normalize-space(text())='Tickets']"
+                    By.XPATH, "//button[@role='tab' and contains(., 'Tickets')]"
                 ))
             )
-            # Use JS click — more reliable than .click() in headless Chrome
-            # as it bypasses visibility and interactability checks
             driver.execute_script("arguments[0].click();", tickets_tab)
-            # Brief pause after clicking to let the tab content render
             time.sleep(random.uniform(1.5, 2.5))
         except:
-            # No Tickets tab found — this place likely has no TTD section at all
             return "NO", "No Tickets tab found"
 
-        # Soft wait: try to detect the TTD region container.
-        # This is a hint only — if it appears we know TTD loaded, if not we still
-        # proceed to check h2 headings directly (aria-label text varies by place/language).
-        try:
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((
-                    By.XPATH, "//*[@role='region' and contains(@aria-label, 'Tickets')]"
-                ))
-            )
-        except:
-            # Outer container not found — but don't return yet.
-            # Fall through and check for h2 headings directly, in case
-            # the aria-label was in a different language or format.
-            pass
-
+        # --- DETECT TTD SECTIONS ---
         sections_found = []
 
-        # After clicking the Tickets tab, Google renders sub-tab buttons
-        # for each module that exists ("Admission", "Tours & Activities").
-        # Simply checking for their presence is the most reliable detection method —
-        # no need to click into them or scan content headings.
-
-        # --- CHECK 1: Admission module ---
-        admission = driver.find_elements(
-            By.XPATH,
-            "//div[@role='tab' and normalize-space(.)='Admission'] | //button[normalize-space(.)='Admission']"
-        )
-        # Fallback: the official admission image only ever appears in the Admission module
+        # CHECK 1: Admission
+        # Primary: official Google TTD image - hardcoded asset, only appears in Admission module
         admission_image = driver.find_elements(
             By.XPATH, "//img[contains(@src, 'official_admission_32x32.png')]"
         )
-        if admission or admission_image:
+        # Backup: Admission sub-tab button
+        admission_tab = driver.find_elements(
+            By.XPATH, "//button[@role='tab' and contains(., 'Admission')]"
+        )
+        if admission_image or admission_tab:
             sections_found.append("Admission")
 
-        # --- CHECK 2: Tours & Activities module ---
-        tours = driver.find_elements(
-            By.XPATH,
-            "//div[@role='tab' and normalize-space(.)='Tours & Activities'] | //button[normalize-space(.)='Tours & Activities']"
+        # CHECK 2: Tours & Activities sub-tab button
+        tours_tab = driver.find_elements(
+            By.XPATH, "//button[@role='tab' and contains(., 'Tours')]"
         )
-        if tours:
+        if tours_tab:
             sections_found.append("Tours & Activities")
 
         if sections_found:
             return "YES", ", ".join(sections_found)
-        return "NO", "Not detected"
+        return "NO", f"Tickets tab found but no modules detected (h1: {h1_text[:30]})"
 
     except Exception as e:
-        return "ERROR", str(e)[:50]
+        return "ERROR", str(e)[:80]
 
 def run_automation():
     print("Connecting to Google Sheets...")
