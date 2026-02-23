@@ -61,23 +61,41 @@ def check_place_on_maps(driver, place_id):
         # This is intentional — it reduces bot detection risk by avoiding instant DOM scanning.
         time.sleep(random.uniform(1.5, 3.0))
 
-        # Wait specifically for the TTD region container to appear, or timeout after 10s.
-        # This replaces the fixed sleep — fast pages resolve quickly, slow ones get more time.
+        # Click the "Tickets" tab if it exists.
+        # The TTD content (Admission, Tours & Activities) only renders in the DOM
+        # after this tab is clicked — it is NOT present on the default Overview tab.
+        try:
+            tickets_tab = WebDriverWait(driver, 8).until(
+                EC.element_to_be_clickable((
+                    By.XPATH, "//button[normalize-space(text())='Tickets'] | //div[@role='tab' and normalize-space(text())='Tickets']"
+                ))
+            )
+            tickets_tab.click()
+            # Brief pause after clicking to let the tab content render
+            time.sleep(random.uniform(1.5, 2.5))
+        except:
+            # No Tickets tab found — this place likely has no TTD section at all
+            return "NO", "No Tickets tab found"
+
+        # Soft wait: try to detect the TTD region container.
+        # This is a hint only — if it appears we know TTD loaded, if not we still
+        # proceed to check h2 headings directly (aria-label text varies by place/language).
         try:
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((
-                    By.XPATH, "//*[@role='region' and starts-with(@aria-label, 'Tickets at')]"
+                    By.XPATH, "//*[@role='region' and contains(@aria-label, 'Tickets')]"
                 ))
             )
         except:
-            # TTD section didn't appear within 10s — it's not present
-            return "NO", "TTD section not detected"
+            # Outer container not found — but don't return yet.
+            # Fall through and check for h2 headings directly, in case
+            # the aria-label was in a different language or format.
+            pass
 
         sections_found = []
 
         # --- CHECK 1: Admission section ---
-        # Most reliable signal: the official Google TTD admission image
-        # This image URL is hardcoded by Google and only appears in the Admission module
+        # Primary: official Google TTD admission image (hardcoded Google asset, zero false positives)
         admission_by_image = driver.find_elements(
             By.XPATH,
             "//img[contains(@src, 'official_admission_32x32.png')]"
@@ -91,7 +109,7 @@ def check_place_on_maps(driver, place_id):
             sections_found.append("Admission")
 
         # --- CHECK 2: Tours & Activities section ---
-        # Target the h2 heading with exact text "Tours & Activities"
+        # Primary: h2 heading with exact text "Tours & Activities"
         tours_by_heading = driver.find_elements(
             By.XPATH,
             "//h2[normalize-space(text())='Tours & Activities']"
@@ -103,7 +121,7 @@ def check_place_on_maps(driver, place_id):
 
         if sections_found:
             return "YES", ", ".join(sections_found)
-        return "NO", "TTD region found but no sections detected"
+        return "NO", "Not detected"
 
     except Exception as e:
         return "ERROR", str(e)[:50]
