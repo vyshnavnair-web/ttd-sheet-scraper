@@ -25,4 +25,6 @@ jobs:
       - name: Run Scraper
         env:
           GOOGLE_SHEETS_JSON: ${{ secrets.GOOGLE_SHEETS_JSON }}
-        run: python ttd_sheet_scraper.py
+        run: |
+          echo "$GOOGLE_SHEETS_JSON" > service_account.json
+          python ttd_sheet_scraper.py
